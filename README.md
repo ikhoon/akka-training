@@ -6,7 +6,7 @@
     // get content body and unmarshal to string
     implicit val system = ActorSystem()
     implicit val materializer = ActorMaterializer()
-    val connectionFlow: Flow[HttpRequest, HttpResponse, Future[OutgoingConnection]] = Http().outgoingConnection("akka.io")
+    val connectionFlow = Http().outgoingConnection("akka.io")
     val bodyFuture = Source.single(HttpRequest(uri = "/"))
     .via(connectionFlow)
     .map{ case r => Unmarshal(r.entity).to[String] }
