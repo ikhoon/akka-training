@@ -1,16 +1,17 @@
 package http
 
+import akka.{Done, NotUsed}
 import akka.actor.{Actor, ActorLogging, ActorRef, ActorSystem, Props}
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.Http.{HostConnectionPool, OutgoingConnection}
+import akka.http.scaladsl.model.ws.{Message, TextMessage, WebSocketRequest, WebSocketUpgradeResponse}
 import akka.http.scaladsl.model.{HttpRequest, HttpResponse, StatusCodes}
 import akka.http.scaladsl.unmarshalling.Unmarshal
 import akka.stream.{ActorMaterializer, ActorMaterializerSettings}
-import akka.stream.scaladsl.{Flow, Sink, Source}
-import akka.util.ByteString
+import akka.stream.scaladsl.{Flow, Keep, Sink, Source}
+import akka.util.{ByteString, Timeout}
 import org.scalatest.WordSpec
 
-import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 import scala.concurrent.{Await, Future}
 import scala.util.Try
@@ -25,6 +26,7 @@ class HttpClientSpec extends WordSpec {
 
     implicit val system = ActorSystem()
     implicit val materializer = ActorMaterializer()
+    import system.dispatcher
     val connectionFlow: Flow[HttpRequest, HttpResponse, Future[OutgoingConnection]] = Http().outgoingConnection("akka.io")
 
     // reference : http://stackoverflow.com/questions/31532838/get-whole-httpresponse-body-as-a-string-with-akka-streams-http
@@ -66,6 +68,7 @@ class HttpClientSpec extends WordSpec {
 
     implicit val system = ActorSystem()
     implicit val materializer = ActorMaterializer()
+    import system.dispatcher
     val pollClientFlow: Flow[(HttpRequest, Int), (Try[HttpResponse], Int), HostConnectionPool] = Http().cachedHostConnectionPool[Int]("akka.io")
 
     "http response body" in {
@@ -97,6 +100,7 @@ class HttpClientSpec extends WordSpec {
     "simple version" in {
       implicit val system = ActorSystem()
       implicit val materializer = ActorMaterializer()
+      import system.dispatcher
       val requestFuture: Future[HttpResponse] = Http().singleRequest(HttpRequest(uri = "http://akka.io"))
 
       val result: HttpResponse = Await.result(requestFuture, Duration.Inf)
@@ -106,12 +110,80 @@ class HttpClientSpec extends WordSpec {
     }
 
     "with in actor" in {
+      import akka.pattern.ask
+      implicit val timout = Timeout(5 seconds)
 
       val system = ActorSystem("actorsytem")
       val actor: ActorRef = system.actorOf(Props[HttpClientActor], "akka")
-      actor ! "fetch"
-      Thread.sleep(1000)
+      val r = actor ? "fetch"
+      println(Await.result(r, Duration.Inf))
 
+    }
+
+  }
+
+  "client side websocket api" should {
+
+    implicit val system = ActorSystem()
+    implicit val materializer = ActorMaterializer()
+    import system.dispatcher
+    "single websocket request" in {
+
+      // sink consume message
+      val printSink: Sink[Message, Future[Done]] = Sink.foreach {
+        case message: TextMessage.Strict =>
+          println(s"## response : ${message.text}")
+      }
+
+      // send message
+      val helloSource = Source(List(TextMessage("1"), TextMessage("2"), TextMessage("3"), TextMessage("4"), TextMessage("5")))
+
+      // how to connect it
+      val flow = Flow.fromSinkAndSourceMat(printSink, helloSource)(Keep.left)
+
+      // request
+      val (upgradeResponse: Future[WebSocketUpgradeResponse], closed: Future[Done]) = Http().singleWebSocketRequest(WebSocketRequest("ws://echo.websocket.org"), flow)
+
+      val connection = upgradeResponse.map { upgrade =>
+        if(upgrade.response.status == StatusCodes.SwitchingProtocols) {
+          Done
+        }
+        else {
+          throw new RuntimeException(s"Connection failed ${upgrade.response.status}")
+        }
+      }
+      connection.onComplete(println)
+
+      closed.foreach(_ => println("closed"))
+
+      Await.result(closed, Duration.Inf)
+
+    }
+
+    "connection flow " in {
+      val incoming = Sink.foreach[Message] {
+        case message : TextMessage.Strict => println(s"incoming : ${message.text}")
+      }
+
+      val outgoing = Source.single(TextMessage("hello world!"))
+
+      val webSocketFlow = Http().webSocketClientFlow(WebSocketRequest("ws://echo.websocket.org"))
+      val (upgradeResponse, closed) = outgoing
+        .viaMat(webSocketFlow)(Keep.right)
+        .toMat(incoming)(Keep.both)
+        .run()
+
+      upgradeResponse.map { upgrade =>
+        if(upgrade.response.status == StatusCodes.SwitchingProtocols) {
+          Done
+        }
+        else {
+          throw new RuntimeException(s"Connection failed ${upgrade.response.status}")
+        }
+      }
+
+      closed.foreach(_ => println("closed"))
+      Await.result(closed, Duration.Inf)
     }
 
   }
@@ -121,15 +193,19 @@ class HttpClientActor extends Actor with ActorLogging {
 
 
   import akka.pattern.pipe
+  import context.dispatcher
 
   final implicit val materializer = ActorMaterializer(ActorMaterializerSettings(context.system))
 
 
+  var send : ActorRef = _
   val http = Http(context.system)
   override def receive: Receive = {
-    case "fetch" => http.singleRequest(HttpRequest(uri = "http://akka.io")).pipeTo(self)
+    case "fetch" =>
+      http.singleRequest(HttpRequest(uri = "http://akka.io")).pipeTo(self)
+      send = sender()
     case HttpResponse(StatusCodes.OK, headers, entity, _) =>
       val body = Unmarshal(entity).to[String]
-      body.foreach(x => log.info("Got body " + x))
+      body.foreach(x => send ! "Got body " + x)
   }
 }

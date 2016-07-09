@@ -5,7 +5,7 @@ version := "1.0"
 scalaVersion := "2.11.8"
 
 lazy val versions = new {
-  val akka = "2.4.7"
+  val akka = "2.4.8"
   val scalaTest  = "2.2.5"
   val logback = "1.1.7"
 }
