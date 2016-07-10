@@ -189,23 +189,4 @@ class HttpClientSpec extends WordSpec {
   }
 }
 
-class HttpClientActor extends Actor with ActorLogging {
 
-
-  import akka.pattern.pipe
-  import context.dispatcher
-
-  final implicit val materializer = ActorMaterializer(ActorMaterializerSettings(context.system))
-
-
-  var send : ActorRef = _
-  val http = Http(context.system)
-  override def receive: Receive = {
-    case "fetch" =>
-      http.singleRequest(HttpRequest(uri = "http://akka.io")).pipeTo(self)
-      send = sender()
-    case HttpResponse(StatusCodes.OK, headers, entity, _) =>
-      val body = Unmarshal(entity).to[String]
-      body.foreach(x => send ! "Got body " + x)
-  }
-}
