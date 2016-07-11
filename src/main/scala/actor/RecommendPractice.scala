@@ -1,6 +1,6 @@
 package actor
 
-import akka.actor.{Actor, Props}
+import akka.actor.{Actor, ActorLogging, Props}
 
 /**
   * Created by ikhoon on 2016. 7. 11..
@@ -27,4 +27,20 @@ class DoubleActor extends Actor {
   override def receive: Receive = {
     case x : Int => adder forward x * 2
   }
+}
+
+object RightMessageLocationActor {
+  // message of actor located in companion object makes easier to know what it can receive
+  case class Greeting(who: String)
+  case object GoodBye
+}
+
+class RightMessageLocationActor extends Actor with ActorLogging {
+
+  import RightMessageLocationActor._
+  override def receive: Receive = {
+    case Greeting(who) => log.info(s"Greeting $who")
+    case GoodBye => log.info("Someone say good bye to me")
+  }
+
 }
