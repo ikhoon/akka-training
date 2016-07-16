@@ -7,7 +7,7 @@ import org.scalatest.WordSpec
 /**
   * Created by ikhoon on 2016. 7. 13..
   */
-class BecomeUnbecomeSpec extends WordSpec {
+class BehaviorSpec extends WordSpec {
 
   "become and unbecome" should {
     "become foo and bar" in {
