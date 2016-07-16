@@ -15,15 +15,19 @@ libraryDependencies ++= Seq(
   "com.typesafe.akka" %% "akka-actor"      % versions.akka,
   "com.typesafe.akka" %% "akka-remote"     % versions.akka,
   "com.typesafe.akka" %% "akka-cluster"     % versions.akka,
+  // akka typed
+  "com.typesafe.akka" %% "akka-typed-experimental" % versions.akka,
+
+  // akka stream
+  "com.typesafe.akka" %% "akka-stream" % versions.akka,
 
   // akka http
-  "com.typesafe.akka" %% "akka-stream" % versions.akka,
   "com.typesafe.akka" %% "akka-http-experimental" % versions.akka,
-"com.typesafe.akka" %% "akka-http-core" % versions.akka,
+  "com.typesafe.akka" %% "akka-http-core" % versions.akka,
   "com.typesafe.akka" %% "akka-http-testkit" % versions.akka % "test",
+  "com.typesafe.akka" %% "akka-testkit"    % versions.akka      % "test",
 
-  "ch.qos.logback"      %  "logback-classic" % versions.logback,
+  "org.scalatest"     %% "scalatest"       % versions.scalaTest % "test",
 
-  "com.typesafe.akka"   %% "akka-testkit"    % versions.akka      % "test",
-  "org.scalatest"       %% "scalatest"       % versions.scalaTest % "test"
+  "ch.qos.logback"    %  "logback-classic" % versions.logback
 )
