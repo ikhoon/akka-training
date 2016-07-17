@@ -19,9 +19,10 @@ class HelloWorldWithTypedSpec extends WordSpec {
     "it works" in {
       implicit val timeout = Timeout(5 seconds)
       val greet : ActorSystem[Greet] = ActorSystem("hello", Props(greeter))
-      val future: Future[Greeted] = greet ? (Greet("world", _))
+      val future1: Future[Greeted] = greet ? (Greet("world", _))
+      val future2: Future[Greeted] = greet ? ((replyTo: ActorRef[Greeted]) => Greet("world", replyTo))
       for {
-        greeting <- future.recover { case ex => ex.getMessage }
+        greeting <- future1.recover { case ex => ex.getMessage }
         done <- { println(s"result: $greeting"); greet.terminate() }
       } println("system terminated")
     }
